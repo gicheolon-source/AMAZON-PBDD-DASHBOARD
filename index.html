@@ -89,6 +89,9 @@ svg{display:block;width:100%;height:auto}
 .note{font-size:13px;color:var(--ink2);margin-top:22px;line-height:1.6}
 .note ul{margin:6px 0 0;padding-left:18px}
 .scroll{overflow-x:auto}
+.btn{font:inherit;font-size:13px;padding:5px 12px;border:1px solid var(--line);background:var(--blue-soft);color:var(--ink);border-radius:6px;cursor:pointer}
+#goaltbl select,#goaltbl input{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
+#goaltbl td{text-align:left}
 </style>
 </head>
 <body>
@@ -122,6 +125,18 @@ svg{display:block;width:100%;height:auto}
   </div>
 </section>
 
+<section class="panel" style="margin-top:16px">
+  <details id="goalbox">
+    <summary style="cursor:pointer;font-weight:600;font-size:15px">목표 매출 설정 <span class="muted" style="font-weight:400;font-size:13px">— 국가별로 어느 목표를 기준으로 볼지 고르거나 직접 입력 (이 브라우저에만 저장)</span></summary>
+    <div class="scroll"><table id="goaltbl" style="margin-top:10px"></table></div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="goal-apply" class="btn">적용</button>
+      <button id="goal-reset" class="btn" style="background:transparent">기본값으로</button>
+      <span class="muted" style="font-size:12px;align-self:center">기본값: 미국 = 플랜 "현실 목표"(₩6.36억), 캐나다·영국·유럽 = 플랜 "최종 목표", 호주 = 실시간 시트 A3. 팀 전체 기본값은 구글시트에 <b>"대시보드 설정"</b> 탭을 만들어 바꿉니다 (A열 국가코드, B열 목표매출 원 단위). 재배포 없이 다음 갱신 때 반영.</span>
+    </div>
+  </details>
+</section>
+
 <section class="panel race">
   <h2>국가별 달성률</h2>
   <div id="race"></div>
@@ -140,7 +155,7 @@ svg{display:block;width:100%;height:auto}
 <div class="note">
   <b>읽는 법</b>
   <ul>
-    <li>목표는 시트의 <b>PBDD 플랜 › 최종 목표</b> 표를 사용했고, 호주는 <b>호주 실시간 현황</b> 시트에 적힌 자체 목표(₩88.8M)를 기준으로 했습니다. 플랜 표 기준(₩102.1M)으로는 92.9%입니다.</li>
+    <li>목표는 기본적으로 시트의 <b>PBDD 플랜 › 최종 목표</b> 표를 쓰고, 호주는 <b>호주 실시간 현황</b> 시트 A3의 자체 목표를 씁니다. 위 "목표 매출 설정"에서 국가별로 현실/공격적/시트/직접 입력으로 바꿀 수 있어요.</li>
     <li>미국·캐나다는 10/6 현지 00시(한국 10/6 16시) 시작으로 시작합니다. 각 국가의 "경과" 표시는 현재 시각 기준, 예상 매출은 시트에 입력된 시간 수 기준입니다.</li>
     <li>Vercel 서버리스 함수가 구글시트를 직접 읽어옵니다(5분 캐시). 시트에 숫자가 입력되면 다음 갱신 때 그대로 반영돼요.</li>
   </ul>
@@ -184,8 +199,43 @@ function chart(c){
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${c.name} 매출 추이">${g}</svg><div class="chart-cap">${bars?"일별 매출 (원)":"누적 매출 (원) · 최근 24시간 입력분"}</div>`;
 }
 
+let LAST=null;
+const GOAL_KEY="pbdd-goals";
+const loadPref=()=>{try{return JSON.parse(localStorage.getItem(GOAL_KEY)||"{}")}catch(e){return {}}};
+function applyGoals(data){
+  const pref=loadPref();
+  data.countries.forEach(c=>{
+    const p=pref[c.code]; if(!p) return;
+    if(p.src==="custom"&&p.value>0){ c.goal=p.value; c.goalSource="custom"; }
+    else if(c.goals[p.src]&&c.goals[p.src].rev){ c.goal=c.goals[p.src].rev; c.goalSource=p.src; c.goalUnits=c.goals[p.src].units; c.pGoal=c.goals[p.src].pGoal; }
+  });
+}
+function renderGoalTable(C){
+  const pref=loadPref();
+  const opts=[["final","플랜 · 최종 목표"],["realistic","플랜 · 현실 목표"],["aggressive","플랜 · 공격적 목표"],["sheet","실시간 시트 자체 목표"],["custom","직접 입력"]];
+  document.getElementById("goaltbl").innerHTML=`<thead><tr><th>국가</th><th>기준</th><th>금액 (원)</th><th>참고</th></tr></thead><tbody>`+C.map(c=>{
+    const p=pref[c.code]||{src:(c.goalSource==="env"||c.goalSource==="config")?"custom":c.goalSource, value:c.goal};
+    const ref=Object.entries(c.goals).filter(([k,g])=>g.rev).map(([k,g])=>`${g.label} ${wonM(g.rev)}`).join(" · ");
+    return `<tr data-code="${c.code}"><td><b>${c.name}</b></td>
+      <td><select class="g-src">${opts.map(([v,l])=>`<option value="${v}" ${p.src===v?"selected":""}>${l}</option>`).join("")}</select></td>
+      <td><input class="g-val" type="number" step="1000000" value="${Math.round(p.src==="custom"?(p.value||c.goal):(c.goals[p.src]?c.goals[p.src].rev:c.goal))}" ${p.src==="custom"?"":"disabled"} style="width:150px"></td>
+      <td class="muted" style="font-size:12px">${ref}</td></tr>`;}).join("")+`</tbody>`;
+  document.querySelectorAll("#goaltbl tr[data-code]").forEach(tr=>{
+    const sel=tr.querySelector(".g-src"), inp=tr.querySelector(".g-val"), c=C.find(x=>x.code===tr.dataset.code);
+    sel.onchange=()=>{ inp.disabled=sel.value!=="custom"; if(sel.value!=="custom") inp.value=Math.round(c.goals[sel.value]?c.goals[sel.value].rev:c.goal); };
+  });
+}
+document.getElementById("goal-apply").onclick=()=>{
+  const pref={}; document.querySelectorAll("#goaltbl tr[data-code]").forEach(tr=>{ pref[tr.dataset.code]={src:tr.querySelector(".g-src").value, value:Number(tr.querySelector(".g-val").value)||0}; });
+  localStorage.setItem(GOAL_KEY,JSON.stringify(pref)); if(LAST) render(JSON.parse(JSON.stringify(LAST)));
+};
+document.getElementById("goal-reset").onclick=()=>{ localStorage.removeItem(GOAL_KEY); if(LAST) render(JSON.parse(JSON.stringify(LAST))); };
+
 function render(data){
+  LAST=LAST&&LAST.updatedAt===data.updatedAt?LAST:JSON.parse(JSON.stringify(data));
+  applyGoals(data);
   const C=data.countries;
+  renderGoalTable(C);
   document.getElementById("asof").textContent = kst(data.updatedAt)+" KST";
   document.getElementById("sheetlink").href = data.sheetUrl;
   const T = C.reduce((a,c)=>({goal:a.goal+c.goal,rev:a.rev+c.rev,units:a.units+c.units,gu:a.gu+c.goalUnits,ad:a.ad+c.ad}),{goal:0,rev:0,units:0,gu:0,ad:0});
@@ -224,7 +274,7 @@ function render(data){
       <table style="margin-top:12px"><thead><tr><th>제품</th><th>목표 개수</th></tr></thead><tbody>${PRODUCTS.map((p,i)=>c.pGoal[i]?`<tr><td>${p}</td><td>${c.pGoal[i].toLocaleString()}</td></tr>`:"").join("")}</tbody></table>`;
     } else {
       const f=fc(c);
-      body=`<div class="stats"><span>매출 <b>${won(c.rev)}</b></span><span>목표 <b>${won(c.goal)}</b>${c.planGoal&&c.planGoal!==c.goal?` <span class="muted">(플랜 ${wonM(c.planGoal)})</span>`:""}</span><span>개수 <b>${c.units.toLocaleString()}</b> / ${c.goalUnits.toLocaleString()}</span><span>광고비 <b>${won(c.ad)}</b></span><span>TACoS <b>${pctTxt(pct(c.ad,c.rev))}</b></span>${f?`<span>마감 예상 <b>${wonM(f.linear)} ~ ${wonM(f.run)}</b></span>`:""}</div>
+      body=`<div class="stats"><span>매출 <b>${won(c.rev)}</b></span><span>목표 <b>${won(c.goal)}</b> <span class="muted">(${c.goalSource==="custom"?"직접 입력":c.goalSource==="config"?"시트 설정 탭":c.goalSource==="env"?"환경변수":c.goals[c.goalSource]?c.goals[c.goalSource].label:""})</span></span><span>개수 <b>${c.units.toLocaleString()}</b> / ${c.goalUnits.toLocaleString()}</span><span>광고비 <b>${won(c.ad)}</b></span><span>TACoS <b>${pctTxt(pct(c.ad,c.rev))}</b></span>${f?`<span>마감 예상 <b>${wonM(f.linear)} ~ ${wonM(f.run)}</b></span>`:""}</div>
       ${chart(c)}
       <div class="scroll"><table style="margin-top:14px"><thead><tr><th>제품</th><th>실제</th><th>목표</th><th></th><th>달성률</th></tr></thead><tbody>
       ${PRODUCTS.map((p,i)=>{ if(!c.pGoal[i]&&!c.pAct[i]) return ""; const q=pct(c.pAct[i],c.pGoal[i]);
@@ -235,7 +285,7 @@ function render(data){
 }
 async function load(force){
   try{ const r=await fetch("/api/data"+(force?"?t="+Date.now():""),{cache:force?"no-store":"default"}); const d=await r.json();
-    if(d.error) throw new Error(d.error); render(d);
+    if(d.error) throw new Error(d.error); LAST=JSON.parse(JSON.stringify(d)); render(d);
   }catch(e){ document.getElementById("asof").textContent="불러오기 실패: "+e.message; }
 }
 document.getElementById("reload").onclick=()=>load(true);
