@@ -11,9 +11,11 @@ const COUNTRIES = [
   { code:"CA", name:"캐나다",          sheet:"PBDD 캐나다 실시간 현황", start:"2026-10-06T16:00+09:00", end:"2026-10-08T16:00+09:00", unitsCol:4,  revCol:5,  window:"10/6 – 10/7 (PST)",
     summary:{ sheet:"PBDD CA", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:8, unitsCol:14, adCol:31 } },
   { code:"UK", name:"영국",            sheet:"PBDD 영국 실시간 현황",   start:"2026-10-06T08:00+09:00", end:"2026-10-08T08:00+09:00", unitsCol:6,  revCol:7,  window:"10/6 – 10/7 (BST)",
-    summary:{ sheet:"PBDD UK", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:7, unitsCol:13, adCol:32 } },
+    summary:{ sheet:"PBDD UK", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:7, unitsCol:13, adCol:32,
+      order:["PDRN 20ml","Copper Peptide","PDRN Lip","PDRN Mask","Ceramide","PDRN Max","Retino-Mela"] } },
   { code:"EU", name:"유럽 (FR·IT·ES)", sheet:"PBDD 유럽 실시간 현황",   start:"2026-10-06T07:00+09:00", end:"2026-10-08T07:00+09:00", unitsCol:10, revCol:11, window:"10/6 – 10/7 (CET)",
-    summary:{ sheet:"PBDD EU", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:6, unitsCol:12, adCol:30 } },
+    summary:{ sheet:"PBDD EU", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:6, unitsCol:12, adCol:30,
+      order:["PDRN 20ml","PDRN Lip","PDRN Mask","Ceramide","PDRN Max","Retino-Mela"] } },
   { code:"AU", name:"호주",            sheet:"PBDD 호주 실시간 현황",   start:"2026-09-28T23:00+09:00", end:"2026-10-05T23:00+09:00", unitsCol:8,  revCol:9,  window:"9/29 – 10/5 (AEST)", goalCell:[2,0] /* A3: 시트 자체 목표 */,
     summary:{ sheet:"PBDD AU", rows:[26,33], nameCol:7, totalCol:11, adRow:21 }, rt:{ prodStart:6, prodN:8, unitsCol:14 } /* 국가 요약 탭의 제품별 실제 판매 합계 (H열=제품, L열=합계) */ },
 ];
@@ -29,7 +31,7 @@ let ENV_GOALS={}; try{ ENV_GOALS=JSON.parse(process.env.GOALS||"{}"); }catch(e){
 // 국가별 기본 목표 출처: final | realistic | aggressive | sheet(실시간 시트 자체 목표)
 const DEFAULT_SOURCE = Object.assign({US:"realistic",CA:"final",UK:"final",EU:"final",AU:"sheet"}, (()=>{try{return JSON.parse(process.env.GOAL_SOURCE||"{}")}catch(e){return {}}})());
 const PRODUCTS = ["PDRN 20ml","PDRN Max","Ceramide","Retino-Mela","PDRN Lip","PDRN Mask","Copper Peptide","Scalp Serum"];
-// 실시간 탭의 실제 열 순서 (호주 탭 vs PBDD AU 요약 대조로 확인: 3번째=Retino-Mela, 4번째=Ceramide)
+// 실시간 탭의 열 순서 기본값 (US/CA/AU 공통, 시트 헤더 확인). UK/EU는 순서가 달라 COUNTRIES rt.order로 지정
 const RT_ORDER  = ["PDRN 20ml","PDRN Max","Retino-Mela","Ceramide","PDRN Lip","PDRN Mask","Copper Peptide","Scalp Serum"];
 
 function canon(h){ // 실시간 시트 헤더 → 표준 제품명
@@ -72,7 +74,8 @@ function readRealtime(rows, rtCfg){
   let unitsIdx, prodCols=[], adIdx;
   if(rtCfg){
     unitsIdx=rtCfg.unitsCol;
-    for(let k=0;k<rtCfg.prodN;k++) prodCols.push([rtCfg.prodStart+k, RT_ORDER[k]]); // G열부터 실시간 탭 열 순서
+    const ord=rtCfg.order||RT_ORDER;
+    for(let k=0;k<rtCfg.prodN;k++) prodCols.push([rtCfg.prodStart+k, ord[k]]); // G열부터 실시간 탭 열 순서
     adIdx=rtCfg.adCol!=null?rtCfg.adCol:-1;
   }else{
     unitsIdx=header.findIndex(h=>String(h).includes("판매 개수"));
