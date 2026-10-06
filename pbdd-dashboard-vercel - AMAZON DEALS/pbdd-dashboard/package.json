@@ -1,7 +1,0 @@
-{
-  "name": "pbdd-dashboard",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Dr.Reju-All 2026 PBDD 실시간 대시보드 (Google Sheet → Vercel)",
-  "engines": { "node": ">=18" }
-}
