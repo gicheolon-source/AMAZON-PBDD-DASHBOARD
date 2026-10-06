@@ -210,6 +210,30 @@ function applyGoals(data){
     else if(c.goals[p.src]&&c.goals[p.src].rev){ c.goal=c.goals[p.src].rev; c.goalSource=p.src; c.goalUnits=c.goals[p.src].units; c.pGoal=c.goals[p.src].pGoal; }
   });
 }
+const PACT_KEY="pbdd-pact";
+const loadPact=()=>{try{return JSON.parse(localStorage.getItem(PACT_KEY)||"{}")}catch(e){return {}}};
+function applyPact(data){
+  const ov=loadPact();
+  data.countries.forEach(c=>{ const o=ov[c.code]; if(!o) return; let any=false;
+    PRODUCTS.forEach((p,i)=>{ if(o[p]!=null){ c.pAct[i]=Number(o[p])||0; any=true; } });
+    if(any) c.units=c.pAct.reduce((a,b)=>a+(b||0),0);
+  });
+}
+function savePact(code,btn){
+  const sec=btn.closest("section"); const ov=loadPact(); const o={};
+  const base=((LAST&&LAST.countries.find(x=>x.code===code))||{}).pAct||[];
+  sec.querySelectorAll(".p-edit").forEach(inp=>{
+    const i=PRODUCTS.indexOf(inp.dataset.p), v=Number(inp.value)||0;
+    if(v!==(base[i]||0)) o[inp.dataset.p]=v;
+  });
+  if(Object.keys(o).length) ov[code]=o; else delete ov[code];
+  localStorage.setItem(PACT_KEY,JSON.stringify(ov));
+  if(LAST) render(JSON.parse(JSON.stringify(LAST)));
+}
+function clearPact(code){
+  const ov=loadPact(); delete ov[code]; localStorage.setItem(PACT_KEY,JSON.stringify(ov));
+  if(LAST) render(JSON.parse(JSON.stringify(LAST)));
+}
 function renderGoalTable(C){
   const pref=loadPref();
   const opts=[["final","플랜 · 최종 목표"],["realistic","플랜 · 현실 목표"],["aggressive","플랜 · 공격적 목표"],["sheet","실시간 시트 자체 목표"],["custom","직접 입력"]];
@@ -234,6 +258,7 @@ document.getElementById("goal-reset").onclick=()=>{ localStorage.removeItem(GOAL
 function render(data){
   LAST=LAST&&LAST.updatedAt===data.updatedAt?LAST:JSON.parse(JSON.stringify(data));
   applyGoals(data);
+  applyPact(data);
   const C=data.countries;
   renderGoalTable(C);
   document.getElementById("asof").textContent = kst(data.updatedAt)+" KST";
@@ -277,10 +302,14 @@ function render(data){
       const f=fc(c);
       body=`<div class="stats"><span>매출 <b>${won(c.rev)}</b></span><span>목표 <b>${won(c.goal)}</b> <span class="muted">(${c.goalSource==="custom"?"직접 입력":c.goalSource==="config"?"시트 설정 탭":c.goalSource==="env"?"환경변수":c.goals[c.goalSource]?c.goals[c.goalSource].label:""})</span></span><span>개수 <b>${c.units.toLocaleString()}</b> / ${c.goalUnits.toLocaleString()}</span><span>광고비 <b>${won(c.ad)}</b></span><span>TACoS <b>${pctTxt(pct(c.ad,c.rev))}</b></span>${f?`<span>마감 예상 <b>${wonM(f.linear)} ~ ${wonM(f.run)}</b></span>`:""}</div>
       ${chart(c)}
-      <div class="scroll"><table style="margin-top:14px"><thead><tr><th>제품</th><th>실제</th><th>목표</th><th></th><th>달성률</th></tr></thead><tbody>
-      ${PRODUCTS.map((p,i)=>{ if(!c.pGoal[i]&&!c.pAct[i]) return ""; const q=pct(c.pAct[i],c.pGoal[i]);
-        return `<tr><td>${p}</td><td><b>${c.pAct[i].toLocaleString()}</b></td><td class="muted">${c.pGoal[i].toLocaleString()}</td><td class="bar-td"><div class="bar"><i style="width:${Math.min(100,q)}%;background:${q>=100?'var(--green)':q>=50?'var(--amber)':'var(--fill)'}"></i></div></td><td><span class="pct ${cls(q)}">${c.pGoal[i]?pctTxt(q):"–"}</span></td></tr>`;}).join("")}
-      </tbody></table></div>`;
+      <div class="scroll"><table style="margin-top:14px"><thead><tr><th>제품</th><th>실제 ✎</th><th>목표</th><th></th><th>달성률</th></tr></thead><tbody>
+      ${PRODUCTS.map((p,i)=>{ const ov=(loadPact()[c.code]||{})[p]!=null; const q=pct(c.pAct[i],c.pGoal[i]);
+        return `<tr><td>${p}</td><td><input type="number" min="0" class="p-edit" value="${c.pAct[i]}" data-p="${p}" style="width:72px;font:inherit;font-weight:700;color:inherit;background:transparent;border:1px solid ${ov?'var(--amber)':'var(--line)'};border-radius:6px;padding:3px 6px"></td><td class="muted">${c.pGoal[i].toLocaleString()}</td><td class="bar-td"><div class="bar"><i style="width:${Math.min(100,q)}%;background:${q>=100?'var(--green)':q>=50?'var(--amber)':'var(--fill)'}"></i></div></td><td><span class="pct ${cls(q)}">${c.pGoal[i]?pctTxt(q):"–"}</span></td></tr>`;}).join("")}
+      </tbody></table></div>
+      <div class="muted" style="font-size:12px;margin-top:8px;display:flex;align-items:center;gap:10px">
+        <button onclick="savePact('${c.code}',this)" style="font:inherit;font-size:12px;font-weight:700;padding:5px 14px;border-radius:7px;border:1px solid var(--line);background:var(--fill);color:#fff;cursor:pointer">저장</button>
+        <span>실제 수량을 수정한 뒤 저장을 누르세요 (이 브라우저에만 저장)</span>
+        ${loadPact()[c.code]?`<a href="#" onclick="clearPact('${c.code}');return false" style="color:var(--amber)">수정값 초기화</a>`:""}</div>`;
     }
     return `<section class="panel card"><div class="head"><h2>${c.name}${TAG[c.status]}</h2><div class="ach">${pctTxt(a)}<small> 달성</small></div></div>${body}</section>`;}).join("");
 }

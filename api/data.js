@@ -6,12 +6,16 @@ const CONFIG_SHEET = "대시보드 설정"; // 선택: 구글시트에 이 탭�
 
 // 국가별 설정: 실시간 시트 이름, 이벤트 창(KST), 목표가 들어있는 플랜 열(0-based)
 const COUNTRIES = [
-  { code:"US", name:"미국",            sheet:"PBDD 미국 실시간 현황",   start:"2026-10-06T16:00+09:00", end:"2026-10-08T16:00+09:00", unitsCol:2,  revCol:3,  window:"10/6 – 10/7 (PST)" },
-  { code:"CA", name:"캐나다",          sheet:"PBDD 캐나다 실시간 현황", start:"2026-10-06T16:00+09:00", end:"2026-10-08T16:00+09:00", unitsCol:4,  revCol:5,  window:"10/6 – 10/7 (PST)" },
-  { code:"UK", name:"영국",            sheet:"PBDD 영국 실시간 현황",   start:"2026-10-06T08:00+09:00", end:"2026-10-08T08:00+09:00", unitsCol:6,  revCol:7,  window:"10/6 – 10/7 (BST)" },
-  { code:"EU", name:"유럽 (FR·IT·ES)", sheet:"PBDD 유럽 실시간 현황",   start:"2026-10-06T07:00+09:00", end:"2026-10-08T07:00+09:00", unitsCol:10, revCol:11, window:"10/6 – 10/7 (CET)" },
+  { code:"US", name:"미국",            sheet:"PBDD 미국 실시간 현황",   start:"2026-10-06T16:00+09:00", end:"2026-10-08T16:00+09:00", unitsCol:2,  revCol:3,  window:"10/6 – 10/7 (PST)",
+    summary:{ sheet:"PBDD US", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:8, unitsCol:14, adCol:31 } },
+  { code:"CA", name:"캐나다",          sheet:"PBDD 캐나다 실시간 현황", start:"2026-10-06T16:00+09:00", end:"2026-10-08T16:00+09:00", unitsCol:4,  revCol:5,  window:"10/6 – 10/7 (PST)",
+    summary:{ sheet:"PBDD CA", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:8, unitsCol:14, adCol:31 } },
+  { code:"UK", name:"영국",            sheet:"PBDD 영국 실시간 현황",   start:"2026-10-06T08:00+09:00", end:"2026-10-08T08:00+09:00", unitsCol:6,  revCol:7,  window:"10/6 – 10/7 (BST)",
+    summary:{ sheet:"PBDD UK", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:7, unitsCol:13, adCol:32 } },
+  { code:"EU", name:"유럽 (FR·IT·ES)", sheet:"PBDD 유럽 실시간 현황",   start:"2026-10-06T07:00+09:00", end:"2026-10-08T07:00+09:00", unitsCol:10, revCol:11, window:"10/6 – 10/7 (CET)",
+    summary:{ sheet:"PBDD EU", rows:[26,33], nameCol:6, totalCol:9, adRow:21 }, rt:{ prodStart:6, prodN:6, unitsCol:12, adCol:30 } },
   { code:"AU", name:"호주",            sheet:"PBDD 호주 실시간 현황",   start:"2026-09-28T23:00+09:00", end:"2026-10-05T23:00+09:00", unitsCol:8,  revCol:9,  window:"9/29 – 10/5 (AEST)", goalCell:[2,0] /* A3: 시트 자체 목표 */,
-    summary:{ sheet:"PBDD AU", rows:[26,33], nameCol:7, totalCol:11 } /* 국가 요약 탭의 제품별 실제 판매 합계 (H열=제품, L열=합계) */ },
+    summary:{ sheet:"PBDD AU", rows:[26,33], nameCol:7, totalCol:11, adRow:21 }, rt:{ prodStart:6, prodN:8, unitsCol:14 } /* 국가 요약 탭의 제품별 실제 판매 합계 (H열=제품, L열=합계) */ },
 ];
 // 플랜 시트 목표 표 (0-based 행, gviz CSV 기준)
 // 최종 목표 = 제품별 표(행=제품, 열=국가): 제품 3~10행 + 합계 11행
@@ -25,6 +29,8 @@ let ENV_GOALS={}; try{ ENV_GOALS=JSON.parse(process.env.GOALS||"{}"); }catch(e){
 // 국가별 기본 목표 출처: final | realistic | aggressive | sheet(실시간 시트 자체 목표)
 const DEFAULT_SOURCE = Object.assign({US:"realistic",CA:"final",UK:"final",EU:"final",AU:"sheet"}, (()=>{try{return JSON.parse(process.env.GOAL_SOURCE||"{}")}catch(e){return {}}})());
 const PRODUCTS = ["PDRN 20ml","PDRN Max","Ceramide","Retino-Mela","PDRN Lip","PDRN Mask","Copper Peptide","Scalp Serum"];
+// 실시간 탭의 실제 열 순서 (호주 탭 vs PBDD AU 요약 대조로 확인: 3번째=Retino-Mela, 4번째=Ceramide)
+const RT_ORDER  = ["PDRN 20ml","PDRN Max","Retino-Mela","Ceramide","PDRN Lip","PDRN Mask","Copper Peptide","Scalp Serum"];
 
 function canon(h){ // 실시간 시트 헤더 → 표준 제품명
   const s=(h||"").toLowerCase();
@@ -59,15 +65,23 @@ async function sheet(name){
   return parseCSV(await r.text());
 }
 
-function readRealtime(rows){
+function readRealtime(rows, rtCfg){
   const header=rows[4]||[];                         // 5행: 헤더
   const revIdx=4;                                   // E열: 매출 (KRW)
-  const unitsIdx=header.findIndex(h=>String(h).includes("판매 개수"));
-  const prodCols=[]; for(let c=6;c<unitsIdx;c++){ const p=canon(header[c]); if(p) prodCols.push([c,p]); }
+  // 제품/개수/광고비 컬럼: 시트 헤더가 병합 셀이라 CSV에 안 내려오므로 국가별 고정 설정(rt) 우선, 없으면 헤더 감지
+  let unitsIdx, prodCols=[], adIdx;
+  if(rtCfg){
+    unitsIdx=rtCfg.unitsCol;
+    for(let k=0;k<rtCfg.prodN;k++) prodCols.push([rtCfg.prodStart+k, RT_ORDER[k]]); // G열부터 실시간 탭 열 순서
+    adIdx=rtCfg.adCol!=null?rtCfg.adCol:-1;
+  }else{
+    unitsIdx=header.findIndex(h=>String(h).includes("판매 개수"));
+    for(let c=6;c<unitsIdx;c++){ const p=canon(header[c]); if(p) prodCols.push([c,p]); }
+    adIdx=header.findIndex(h=>String(h).includes("광고비 합계"));
+  }
   // 일 단위 누적 → 날짜가 바뀌면(마감 행 또는 값이 줄어들면) 완료일 합계로 적립
   let total=0, units=0, prod=Object.fromEntries(PRODUCTS.map(p=>[p,0])), ad=0;
   let dayRev=0, dayUnits=0, dayProd={}, dayAd=0, prevRev=0, elapsedH=0, series=[], lastAt="", lastLabel="";
-  const adIdx=header.findIndex(h=>String(h).includes("광고비 합계"));
   const closeDay=()=>{ total+=dayRev; units+=dayUnits; ad+=dayAd; for(const k in dayProd) prod[k]+=dayProd[k]; dayRev=0;dayUnits=0;dayProd={};dayAd=0;prevRev=0; };
   const dayLabels=[];
   for(let r=5;r<rows.length;r++){
@@ -101,11 +115,12 @@ module.exports = async (req,res)=>{
       const rev=num(r[1]); const src=String(r[2]||"").trim().toLowerCase(); CFG[code]={rev, src: ["final","realistic","aggressive","sheet"].includes(src)?src:null}; });
     const now=Date.now();
     const out=COUNTRIES.map((c,i)=>{
-      const d=readRealtime(rt[i]);
+      const d=readRealtime(rt[i], c.rt);
       if(c.summary && sm[i]){ // 실시간 탭에 제품별 수치가 없으면 요약 탭 합계로 보강
         const s=c.summary;
         for(let r=s.rows[0]; r<=s.rows[1]; r++){ const row=sm[i][r]||[]; const p=canon(row[s.nameCol]); const q=num(row[s.totalCol]); if(p && q && !d.prod[p]) d.prod[p]=q; }
         if(!d.units) d.units = PRODUCTS.reduce((t,p)=>t+(d.prod[p]||0),0);
+        if(!d.ad && s.adRow!=null){ const av=num((sm[i][s.adRow]||[])[s.totalCol]); if(av) d.ad=av; } // 전체 내외부 광고비 (KRW 행)
       }
       const goals={};
       for(const [k,t] of Object.entries(PLAN_TABLES)){
