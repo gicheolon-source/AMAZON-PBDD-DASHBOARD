@@ -251,7 +251,8 @@ function render(data){
 
   document.getElementById("race").innerHTML = C.map(c=>{
     const a=pct(c.rev,c.goal);
-    const sub = c.status==="wait" ? kst(c.startsAt)+" KST 시작" : c.status==="done" ? "마감 · "+c.window : "경과 "+pctTxt(c.pace*100)+(c.lastAt?" · 마지막 입력 "+c.lastAt:"");
+    const remH = Math.max(0,Math.round(c.totalH*(1-c.pace)));
+    const sub = c.status==="wait" ? kst(c.startsAt)+" KST 시작" : c.status==="done" ? "마감 · "+c.window : "경과 "+pctTxt(c.pace*100)+" · <b>남은 "+remH+"시간</b>"+(c.lastAt?" · 마지막 입력 "+c.lastAt:"");
     return `<div class="row"><div class="name">${c.name}${TAG[c.status]}<small>${sub}</small></div>
       <div class="track"><i style="width:${Math.min(100,a)}%"></i>${c.status!=="wait"?`<div class="pace" style="left:${Math.min(100,c.pace*100)}%"></div>`:""}<div class="goal"></div></div>
       <div class="nums"><b>${pctTxt(a)}</b>${wonM(c.rev)} / ${wonM(c.goal)}</div></div>`;}).join("");

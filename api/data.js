@@ -10,7 +10,8 @@ const COUNTRIES = [
   { code:"CA", name:"캐나다",          sheet:"PBDD 캐나다 실시간 현황", start:"2026-10-06T16:00+09:00", end:"2026-10-08T16:00+09:00", unitsCol:4,  revCol:5,  window:"10/6 – 10/7 (PST)" },
   { code:"UK", name:"영국",            sheet:"PBDD 영국 실시간 현황",   start:"2026-10-06T08:00+09:00", end:"2026-10-08T08:00+09:00", unitsCol:6,  revCol:7,  window:"10/6 – 10/7 (BST)" },
   { code:"EU", name:"유럽 (FR·IT·ES)", sheet:"PBDD 유럽 실시간 현황",   start:"2026-10-06T07:00+09:00", end:"2026-10-08T07:00+09:00", unitsCol:10, revCol:11, window:"10/6 – 10/7 (CET)" },
-  { code:"AU", name:"호주",            sheet:"PBDD 호주 실시간 현황",   start:"2026-09-28T23:00+09:00", end:"2026-10-05T23:00+09:00", unitsCol:8,  revCol:9,  window:"9/29 – 10/5 (AEST)", goalCell:[2,0] /* A3: 시트 자체 목표 */ },
+  { code:"AU", name:"호주",            sheet:"PBDD 호주 실시간 현황",   start:"2026-09-28T23:00+09:00", end:"2026-10-05T23:00+09:00", unitsCol:8,  revCol:9,  window:"9/29 – 10/5 (AEST)", goalCell:[2,0] /* A3: 시트 자체 목표 */,
+    summary:{ sheet:"PBDD AU", rows:[26,33], nameCol:7, totalCol:11 } /* 국가 요약 탭의 제품별 실제 판매 합계 (H열=제품, L열=합계) */ },
 ];
 // 플랜 시트 목표 표 (0-based 행, gviz CSV 기준)
 // 최종 목표 = 제품별 표(행=제품, 열=국가): 제품 3~10행 + 합계 11행
@@ -93,6 +94,7 @@ function readRealtime(rows){
 module.exports = async (req,res)=>{
   try{
     const [plan, cfgRows, ...rt] = await Promise.all([sheet(PLAN_SHEET), sheet(CONFIG_SHEET).catch(()=>null), ...COUNTRIES.map(c=>sheet(c.sheet))]);
+    const sm = await Promise.all(COUNTRIES.map(c=>c.summary ? sheet(c.summary.sheet).catch(()=>null) : null)); // 국가 요약 탭 (제품별 실제 판매)
     // "대시보드 설정" 탭: A열 국가코드(US/CA/UK/EU/AU), B열 목표매출(원, 숫자), C열 출처(final/realistic/aggressive/sheet) — B가 있으면 B 우선
     const CFG={};
     (cfgRows||[]).forEach(r=>{ const code=String(r[0]||"").trim().toUpperCase(); if(!/^(US|CA|UK|EU|AU)$/.test(code)) return;
@@ -100,6 +102,11 @@ module.exports = async (req,res)=>{
     const now=Date.now();
     const out=COUNTRIES.map((c,i)=>{
       const d=readRealtime(rt[i]);
+      if(c.summary && sm[i]){ // 실시간 탭에 제품별 수치가 없으면 요약 탭 합계로 보강
+        const s=c.summary;
+        for(let r=s.rows[0]; r<=s.rows[1]; r++){ const row=sm[i][r]||[]; const p=canon(row[s.nameCol]); const q=num(row[s.totalCol]); if(p && q && !d.prod[p]) d.prod[p]=q; }
+        if(!d.units) d.units = PRODUCTS.reduce((t,p)=>t+(d.prod[p]||0),0);
+      }
       const goals={};
       for(const [k,t] of Object.entries(PLAN_TABLES)){
         goals[k]={ label:t.label, rev:num((plan[t.total]||[])[c.revCol]), units:num((plan[t.total]||[])[c.unitsCol]), pGoal:t.rows.map(r=>num((plan[r]||[])[c.unitsCol])) };
