@@ -18,7 +18,7 @@ const PLAN_TABLES = {
   final:      { label:"최종 목표",            rows:[3,4,5,6,7,8,9,10], total:11 },
 };
 // 현실/공격적 목표 = "PBDD 매출 - 광고" 국가별 표(행=국가): C=현실 매출, D=개수, G=공격적 매출, H=개수
-const COUNTRY_GOAL_ROWS = { US:27, CA:28, UK:29, EU:30, AU:31 };
+const COUNTRY_GOAL_ROWS = { US:27, CA:28, UK:29, AU:30, EU:31 }; // 표 순서: 미국/캐나다/영국/호주/유럽
 // 서버 기본 목표 덮어쓰기 (Vercel 환경변수 GOALS, 예: {"US":800000000,"AU":102130740})
 let ENV_GOALS={}; try{ ENV_GOALS=JSON.parse(process.env.GOALS||"{}"); }catch(e){}
 // 국가별 기본 목표 출처: final | realistic | aggressive | sheet(실시간 시트 자체 목표)
