@@ -12,12 +12,13 @@ const COUNTRIES = [
   { code:"EU", name:"유럽 (FR·IT·ES)", sheet:"PBDD 유럽 실시간 현황",   start:"2026-10-06T07:00+09:00", end:"2026-10-08T07:00+09:00", unitsCol:10, revCol:11, window:"10/6 – 10/7 (CET)" },
   { code:"AU", name:"호주",            sheet:"PBDD 호주 실시간 현황",   start:"2026-09-28T23:00+09:00", end:"2026-10-05T23:00+09:00", unitsCol:8,  revCol:9,  window:"9/29 – 10/5 (AEST)", goalCell:[2,0] /* A3: 시트 자체 목표 */ },
 ];
-// 플랜 시트의 세 가지 목표 표 (0-based 행): 제품 8행 + 합계행
+// 플랜 시트 목표 표 (0-based 행, gviz CSV 기준)
+// 최종 목표 = 제품별 표(행=제품, 열=국가): 제품 3~10행 + 합계 11행
 const PLAN_TABLES = {
-  final:      { label:"최종 목표",            rows:[43,44,45,46,47,48,49,50], total:51 },
-  realistic:  { label:"현실 목표",            rows:[5,6,7,8,9,10,11,12],       total:13 },
-  aggressive: { label:"공격적 목표",          rows:[18,19,20,21,22,23,24,25],  total:26 },
+  final:      { label:"최종 목표",            rows:[3,4,5,6,7,8,9,10], total:11 },
 };
+// 현실/공격적 목표 = "PBDD 매출 - 광고" 국가별 표(행=국가): C=현실 매출, D=개수, G=공격적 매출, H=개수
+const COUNTRY_GOAL_ROWS = { US:27, CA:28, UK:29, EU:30, AU:31 };
 // 서버 기본 목표 덮어쓰기 (Vercel 환경변수 GOALS, 예: {"US":800000000,"AU":102130740})
 let ENV_GOALS={}; try{ ENV_GOALS=JSON.parse(process.env.GOALS||"{}"); }catch(e){}
 // 국가별 기본 목표 출처: final | realistic | aggressive | sheet(실시간 시트 자체 목표)
@@ -103,6 +104,9 @@ module.exports = async (req,res)=>{
       for(const [k,t] of Object.entries(PLAN_TABLES)){
         goals[k]={ label:t.label, rev:num((plan[t.total]||[])[c.revCol]), units:num((plan[t.total]||[])[c.unitsCol]), pGoal:t.rows.map(r=>num((plan[r]||[])[c.unitsCol])) };
       }
+      const gr = plan[COUNTRY_GOAL_ROWS[c.code]]||[]; // 국가별 목표 표의 해당 국가 행
+      goals.realistic  = { label:"현실 목표",   rev:num(gr[2]), units:num(gr[3]), pGoal:goals.final.pGoal };
+      goals.aggressive = { label:"공격적 목표", rev:num(gr[6]), units:num(gr[7]), pGoal:goals.final.pGoal };
       const sheetGoal = c.goalCell ? num((rt[i][c.goalCell[0]]||[])[c.goalCell[1]]) : d.target; // 실시간 시트 자체 목표 (B2 / A3)
       goals.sheet={ label:"실시간 시트 목표", rev:sheetGoal||0, units:goals.final.units, pGoal:goals.final.pGoal };
       const cfg=CFG[c.code]||{};
