@@ -132,7 +132,7 @@ svg{display:block;width:100%;height:auto}
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
       <button id="goal-apply" class="btn">적용</button>
       <button id="goal-reset" class="btn" style="background:transparent">기본값으로</button>
-      <span class="muted" style="font-size:12px;align-self:center">기본값: 미국 = 플랜 "현실 목표"(₩6.36억), 캐나다·영국·유럽 = 플랜 "최종 목표", 호주 = 실시간 시트 A3. 팀 전체 기본값은 구글시트에 <b>"대시보드 설정"</b> 탭을 만들어 바꿉니다 (A열 국가코드, B열 목표매출 원 단위). 재배포 없이 다음 갱신 때 반영.</span>
+      <span class="muted" style="font-size:12px;align-self:center">기본값: 미국 = 플랜 "현실 목표"(₩6.36억), 캐나다·영국·유럽 = 플랜 "최종 목표", 호주 = 실시간 시트 A3. </span>
     </div>
   </details>
 </section>
@@ -214,7 +214,7 @@ function renderGoalTable(C){
   const pref=loadPref();
   const opts=[["final","플랜 · 최종 목표"],["realistic","플랜 · 현실 목표"],["aggressive","플랜 · 공격적 목표"],["sheet","실시간 시트 자체 목표"],["custom","직접 입력"]];
   document.getElementById("goaltbl").innerHTML=`<thead><tr><th>국가</th><th>기준</th><th>금액 (원)</th><th>참고</th></tr></thead><tbody>`+C.map(c=>{
-    const p=pref[c.code]||{src:(c.goalSource==="env"||c.goalSource==="config")?"custom":c.goalSource, value:c.goal};
+    const p=pref[c.code]||{src:c.goalSource==="env"?"custom":c.goalSource, value:c.goal};
     const ref=Object.entries(c.goals).filter(([k,g])=>g.rev).map(([k,g])=>`${g.label} ${wonM(g.rev)}`).join(" · ");
     return `<tr data-code="${c.code}"><td><b>${c.name}</b></td>
       <td><select class="g-src">${opts.map(([v,l])=>`<option value="${v}" ${p.src===v?"selected":""}>${l}</option>`).join("")}</select></td>
@@ -274,7 +274,7 @@ function render(data){
       <table style="margin-top:12px"><thead><tr><th>제품</th><th>목표 개수</th></tr></thead><tbody>${PRODUCTS.map((p,i)=>c.pGoal[i]?`<tr><td>${p}</td><td>${c.pGoal[i].toLocaleString()}</td></tr>`:"").join("")}</tbody></table>`;
     } else {
       const f=fc(c);
-      body=`<div class="stats"><span>매출 <b>${won(c.rev)}</b></span><span>목표 <b>${won(c.goal)}</b> <span class="muted">(${c.goalSource==="custom"?"직접 입력":c.goalSource==="config"?"시트 설정 탭":c.goalSource==="env"?"환경변수":c.goals[c.goalSource]?c.goals[c.goalSource].label:""})</span></span><span>개수 <b>${c.units.toLocaleString()}</b> / ${c.goalUnits.toLocaleString()}</span><span>광고비 <b>${won(c.ad)}</b></span><span>TACoS <b>${pctTxt(pct(c.ad,c.rev))}</b></span>${f?`<span>마감 예상 <b>${wonM(f.linear)} ~ ${wonM(f.run)}</b></span>`:""}</div>
+      body=`<div class="stats"><span>매출 <b>${won(c.rev)}</b></span><span>목표 <b>${won(c.goal)}</b> <span class="muted">(${c.goalSource==="custom"?"직접 입력":c.goalSource==="env"?"환경변수":c.goals[c.goalSource]?c.goals[c.goalSource].label:""})</span></span><span>개수 <b>${c.units.toLocaleString()}</b> / ${c.goalUnits.toLocaleString()}</span><span>광고비 <b>${won(c.ad)}</b></span><span>TACoS <b>${pctTxt(pct(c.ad,c.rev))}</b></span>${f?`<span>마감 예상 <b>${wonM(f.linear)} ~ ${wonM(f.run)}</b></span>`:""}</div>
       ${chart(c)}
       <div class="scroll"><table style="margin-top:14px"><thead><tr><th>제품</th><th>실제</th><th>목표</th><th></th><th>달성률</th></tr></thead><tbody>
       ${PRODUCTS.map((p,i)=>{ if(!c.pGoal[i]&&!c.pAct[i]) return ""; const q=pct(c.pAct[i],c.pGoal[i]);
