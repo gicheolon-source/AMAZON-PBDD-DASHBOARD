@@ -2,6 +2,7 @@
 // 시트는 "링크가 있는 모든 사용자: 뷰어" 공유 상태여야 합니다. (gviz CSV 내보내기 사용, 키 불필요)
 const SHEET_ID = process.env.SHEET_ID || "1UPgaIToxwjCPmxSSgU_WuXxceoUspl48hSUnoB7ZnlM";
 const PLAN_SHEET = "PBDD 플랜";
+const CONFIG_SHEET = "대시보드 설정"; // 선택: 구글시트에 이 탭을 만들면 목표를 시트에서 바로 바꿀 수 있음
 
 // 국가별 설정: 실시간 시트 이름, 이벤트 창(KST), 목표가 들어있는 플랜 열(0-based)
 const COUNTRIES = [
@@ -11,8 +12,16 @@ const COUNTRIES = [
   { code:"EU", name:"유럽 (FR·IT·ES)", sheet:"PBDD 유럽 실시간 현황",   start:"2026-10-06T07:00+09:00", end:"2026-10-08T07:00+09:00", unitsCol:10, revCol:11, window:"10/6 – 10/7 (CET)" },
   { code:"AU", name:"호주",            sheet:"PBDD 호주 실시간 현황",   start:"2026-09-28T23:00+09:00", end:"2026-10-05T23:00+09:00", unitsCol:8,  revCol:9,  window:"9/29 – 10/5 (AEST)", goalCell:[2,0] /* A3: 시트 자체 목표 */ },
 ];
-// 플랜 시트 "최종 목표" 표: 44~51행(0-based 43~50), B열 제품명
-const PLAN_ROWS = [43,44,45,46,47,48,49,50];
+// 플랜 시트의 세 가지 목표 표 (0-based 행): 제품 8행 + 합계행
+const PLAN_TABLES = {
+  final:      { label:"최종 목표",            rows:[43,44,45,46,47,48,49,50], total:51 },
+  realistic:  { label:"현실 목표",            rows:[5,6,7,8,9,10,11,12],       total:13 },
+  aggressive: { label:"공격적 목표",          rows:[18,19,20,21,22,23,24,25],  total:26 },
+};
+// 서버 기본 목표 덮어쓰기 (Vercel 환경변수 GOALS, 예: {"US":800000000,"AU":102130740})
+let ENV_GOALS={}; try{ ENV_GOALS=JSON.parse(process.env.GOALS||"{}"); }catch(e){}
+// 국가별 기본 목표 출처: final | realistic | aggressive | sheet(실시간 시트 자체 목표)
+const DEFAULT_SOURCE = Object.assign({US:"realistic",CA:"final",UK:"final",EU:"final",AU:"sheet"}, (()=>{try{return JSON.parse(process.env.GOAL_SOURCE||"{}")}catch(e){return {}}})());
 const PRODUCTS = ["PDRN 20ml","PDRN Max","Ceramide","Retino-Mela","PDRN Lip","PDRN Mask","Copper Peptide","Scalp Serum"];
 
 function canon(h){ // 실시간 시트 헤더 → 표준 제품명
@@ -82,20 +91,32 @@ function readRealtime(rows){
 
 module.exports = async (req,res)=>{
   try{
-    const [plan, ...rt] = await Promise.all([sheet(PLAN_SHEET), ...COUNTRIES.map(c=>sheet(c.sheet))]);
+    const [plan, cfgRows, ...rt] = await Promise.all([sheet(PLAN_SHEET), sheet(CONFIG_SHEET).catch(()=>null), ...COUNTRIES.map(c=>sheet(c.sheet))]);
+    // "대시보드 설정" 탭: A열 국가코드(US/CA/UK/EU/AU), B열 목표매출(원, 숫자), C열 출처(final/realistic/aggressive/sheet) — B가 있으면 B 우선
+    const CFG={};
+    (cfgRows||[]).forEach(r=>{ const code=String(r[0]||"").trim().toUpperCase(); if(!/^(US|CA|UK|EU|AU)$/.test(code)) return;
+      const rev=num(r[1]); const src=String(r[2]||"").trim().toLowerCase(); CFG[code]={rev, src: ["final","realistic","aggressive","sheet"].includes(src)?src:null}; });
     const now=Date.now();
     const out=COUNTRIES.map((c,i)=>{
       const d=readRealtime(rt[i]);
-      const pGoal=PLAN_ROWS.map(r=>num((plan[r]||[])[c.unitsCol]));
-      const goalRev=num((plan[51]||[])[c.revCol]); const goalUnits=num((plan[51]||[])[c.unitsCol]);
-      const goal = c.goalCell ? num((rt[i][c.goalCell[0]]||[])[c.goalCell[1]]) || goalRev : goalRev;
+      const goals={};
+      for(const [k,t] of Object.entries(PLAN_TABLES)){
+        goals[k]={ label:t.label, rev:num((plan[t.total]||[])[c.revCol]), units:num((plan[t.total]||[])[c.unitsCol]), pGoal:t.rows.map(r=>num((plan[r]||[])[c.unitsCol])) };
+      }
+      const sheetGoal = c.goalCell ? num((rt[i][c.goalCell[0]]||[])[c.goalCell[1]]) : d.target; // 실시간 시트 자체 목표 (B2 / A3)
+      goals.sheet={ label:"실시간 시트 목표", rev:sheetGoal||0, units:goals.final.units, pGoal:goals.final.pGoal };
+      const cfg=CFG[c.code]||{};
+      const wanted = cfg.src || DEFAULT_SOURCE[c.code];
+      const src = goals[wanted] && goals[wanted].rev ? wanted : "final";
+      const goal = cfg.rev || ENV_GOALS[c.code] || goals[src].rev;
       const s=Date.parse(c.start), e=Date.parse(c.end);
       const status = now<s ? "wait" : now>=e ? "done" : "live";
       const pace = Math.max(0,Math.min(1,(now-s)/(e-s)));
       const totalH=Math.round((e-s)/36e5);
-      return { code:c.code, name:c.name, window:c.window, status, pace, totalH, goal, planGoal:goalRev, goalUnits,
+      return { code:c.code, name:c.name, window:c.window, status, pace, totalH,
+        goal, goalSource: cfg.rev?"config":ENV_GOALS[c.code]?"env":src, goals, planGoal:goals.final.rev, goalUnits:goals[src].units,
         rev:d.rev, units:d.units, ad:d.ad, elapsedH:d.elapsedH, lastAt:d.lastAt, series:d.series.slice(-48), days:d.days,
-        pGoal, pAct:PRODUCTS.map(p=>d.prod[p]||0), startsAt:c.start };
+        pGoal:goals[src].pGoal, pAct:PRODUCTS.map(p=>d.prod[p]||0), startsAt:c.start };
     });
     res.setHeader("Cache-Control","s-maxage=300, stale-while-revalidate=600");
     res.setHeader("Content-Type","application/json; charset=utf-8");
