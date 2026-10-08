@@ -92,6 +92,33 @@ svg{display:block;width:100%;height:auto}
 .btn{font:inherit;font-size:13px;padding:5px 12px;border:1px solid var(--line);background:var(--blue-soft);color:var(--ink);border-radius:6px;cursor:pointer}
 #goaltbl select,#goaltbl input{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink)}
 #goaltbl td{text-align:left}
+
+/* BFCM */
+.dday{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.dday b{font-size:34px;font-weight:700;letter-spacing:-0.02em;line-height:1.1}
+.phases{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 4px}
+.ph{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--bg)}
+.ph.now{border-color:var(--blue);background:var(--blue-soft)}
+.ph.past{opacity:.55}
+.ph b{display:block;font-size:13px}
+.ph span{display:block;font-size:11.5px;color:var(--ink3);margin-top:1px}
+.catbar{display:flex;align-items:center;gap:10px;margin:20px 0 2px}
+.catbar h3{margin:0;font-size:14.5px;font-weight:600}
+.catbar .bar{flex:0 0 120px;height:7px}
+.catbar .n{font-size:12px;color:var(--ink3)}
+.ck{display:grid;grid-template-columns:20px 1fr 104px 112px 56px;gap:6px 10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px}
+.ck input[type=checkbox]{width:17px;height:17px;accent-color:var(--blue);cursor:pointer;margin:0}
+.ck.done .t{text-decoration:line-through;color:var(--ink3)}
+.ck .t small{display:block;color:var(--ink3);font-size:11.5px;text-decoration:none}
+.ck .owner,.ck .due{font:inherit;font-size:12.5px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);width:100%;min-width:0}
+.ck .st{font-size:11px;font-weight:600;text-align:center;border-radius:20px;padding:2px 0;color:var(--ink3)}
+.st.late{background:var(--red-soft);color:var(--red)} .st.soon{background:var(--amber-soft);color:var(--amber)} .st.fin{background:var(--green-soft);color:var(--green)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{font:inherit;font-size:12.5px;padding:4px 11px;border:0;background:var(--panel);color:var(--ink2);cursor:pointer}
+.seg button.on{background:var(--blue-soft);color:var(--blue);font-weight:600}
+@media(max-width:760px){.phases{grid-template-columns:1fr 1fr}
+  .ck{grid-template-columns:20px 1fr 56px;gap:4px 8px}
+  .ck .owner{grid-column:2} .ck .due{grid-column:2}}
 </style>
 </head>
 <body>
@@ -103,7 +130,7 @@ svg{display:block;width:100%;height:auto}
     <div class="sub">Dr.Reju-All · Prime Big Deal Days · 목표 매출 vs 실시간 현황</div>
   </div>
   <div class="meta">
-    시트 기준 <b id="asof">불러오는 중…</b><br>원본: <a id="sheetlink" href="#" target="_blank" rel="noopener">2026 PBDD 구글시트</a> · 5분마다 자동 갱신 <button id="reload" style="margin-left:6px;font:inherit;font-size:12px;padding:2px 8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;cursor:pointer">지금 갱신</button>
+    시트 기준 <b id="asof">불러오는 중…</b><br>원본: <a id="sheetlink" href="#" target="_blank" rel="noopener">2026 PBDD 구글시트</a> · <a href="#bfcm">BFCM 준비 ↓</a> · 5분마다 자동 갱신<button id="reload" style="margin-left:6px;font:inherit;font-size:12px;padding:2px 8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;cursor:pointer">지금 갱신</button>
   </div>
 </div>
 
@@ -151,6 +178,27 @@ svg{display:block;width:100%;height:auto}
 </section>
 
 <div class="grid" id="cards"></div>
+
+<section class="panel" id="bfcm" style="margin-top:16px">
+  <div class="head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
+    <div>
+      <h2 style="margin-bottom:4px">BFCM 2026 준비 체크리스트</h2>
+      <div class="dday"><b id="bf-dday">—</b><span class="sub" id="bf-win" style="font-size:13px"></span></div>
+    </div>
+    <div style="text-align:right">
+      <div class="muted" style="font-size:12px">완료 <b id="bf-prog" style="color:var(--ink);font-size:15px">0 / 0</b></div>
+      <div class="bar thin" style="width:160px;margin-top:6px"><i id="bf-bar" style="width:0%"></i></div>
+    </div>
+  </div>
+  <div class="phases" id="bf-phases"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px">
+    <span class="seg" id="bf-filter"><button data-f="all" class="on">전체</button><button data-f="open">미완료</button><button data-f="risk">지연·임박</button></span>
+    <button class="btn" id="bf-copy" style="margin-left:auto">텍스트 복사</button>
+    <button class="btn" id="bf-reset" style="background:transparent">초기화</button>
+  </div>
+  <div id="bf-list"></div>
+  <div class="legend" style="margin-top:14px">담당자·마감일은 직접 수정할 수 있고, 체크 상태와 함께 이 브라우저에 저장됩니다 · <b>지연</b> = 마감일 경과, <b>임박</b> = 7일 이내 · 마감일은 KST 기준</div>
+</section>
 
 <div class="note">
   <b>읽는 법</b>
@@ -313,6 +361,129 @@ function render(data){
     }
     return `<section class="panel card"><div class="head"><h2>${c.name}${TAG[c.status]}</h2><div class="ach">${pctTxt(a)}<small> 달성</small></div></div>${body}</section>`;}).join("");
 }
+/* ---------- BFCM 2026 준비 체크리스트 ---------- */
+const BF_KEY="pbdd-bfcm";
+const BF_PHASES=[
+  {n:"사전 준비",    s:"2026-10-08", e:"2026-11-04", d:"데이터 정리 · 딜 신청 · 입고"},
+  {n:"Lead-in",     s:"2026-11-05", e:"2026-11-18", d:"랭킹 부스트 · 가격 안정화"},
+  {n:"BFCM 본행사",  s:"2026-11-19", e:"2026-11-30", d:"12일 · 블프 11/27 · 사이버먼데이 11/30"},
+  {n:"Lead-out",    s:"2026-12-01", e:"2026-12-08", d:"가격 복귀 · 리뷰 수확"},
+];
+const BF_CATS=[["price","가격 · 딜 일정"],["inv","재고 · FBA"],["ads","광고 · PPC"],["list","리스팅 · 경쟁사"]];
+const BF_ITEMS=[
+  // 가격 · 딜
+  {id:"p1", c:"price", due:"2026-10-14", t:"작년 BFCM·이번 PBDD 실적 정리", n:"제품·국가별 일별 판매량, ASP, 전환율, 할인율 대비 리프트"},
+  {id:"p2", c:"price", due:"2026-10-21", t:"제품별 BFCM 할인율·최저가 라인 확정", n:"마진 시뮬(수수료·FBA·광고비 포함) 후 하한가 승인"},
+  {id:"p3", c:"price", due:"2026-10-28", t:"국가별 딜 신청 현황·승인 여부 확인", n:"LD/BD/Prime 전용 할인·쿠폰, 미승인 건 대안 마련"},
+  {id:"p4", c:"price", due:"2026-11-04", t:"Lead-in 가격 세팅 (11/5~11/18)", n:"과도한 선할인 금지 — 30일 평균가가 딜 적격가를 깨지 않게"},
+  {id:"p5", c:"price", due:"2026-11-11", t:"ASIN별 딜 적격가 충족 점검", n:"Deal reference price / 전 30일 최저가 룰 확인"},
+  {id:"p6", c:"price", due:"2026-11-11", t:"국가별 가격·환율 괴리 점검", n:"US/CA/UK/EU/AU 현지 통화 기준 경쟁력"},
+  {id:"p7", c:"price", due:"2026-11-18", t:"BFCM 본딜 가격 일괄 적용 스케줄 등록", n:"11/19 현지 00:00 발효, 쿠폰 시작·종료 시각 포함"},
+  {id:"p8", c:"price", due:"2026-11-28", t:"Lead-out 가격 복귀 계획 확정", n:"12/1~12/8 단계적 정상가 — 급격한 인상은 전환율 급락 주의"},
+  // 재고 · FBA
+  {id:"i1", c:"inv",  due:"2026-10-17", t:"BFCM 판매 예측 수립", n:"PBDD 실적 × 배수로 제품·국가별 수요 예측 (BFCM + 12월 커버)"},
+  {id:"i2", c:"inv",  due:"2026-10-17", t:"FBA 입고 마감일 역산·선적 스케줄 확정", n:"성수기 입고 지연 감안해 버퍼 2주 확보"},
+  {id:"i3", c:"inv",  due:"2026-10-24", t:"국가별 재고 커버리지 점검", n:"일판매 × (리드타임+커버) 대비 부족분 산출"},
+  {id:"i4", c:"inv",  due:"2026-10-24", t:"Restock limit · IPI 점검", n:"한도 부족 시 사전 조치"},
+  {id:"i5", c:"inv",  due:"2026-11-04", t:"AWD → FBA 보충 요청", n:"BFCM 직전 보충은 늦음 — 리드타임 역산해서 발주"},
+  {id:"i6", c:"inv",  due:"2026-11-14", t:"재고 부족 ASIN 딜·광고 제외 리스트 확정", n:"품절 임박 ASIN에 예산 태우지 않도록"},
+  {id:"i7", c:"inv",  due:"2026-11-18", t:"행사 기간 일일 재고 모니터링 체계", n:"품절·Stranded 알림 담당자와 체크 주기 지정"},
+  // 광고 · PPC
+  {id:"a1", c:"ads",  due:"2026-10-14", t:"PBDD 광고 성과 리뷰", n:"캠페인별 ROAS/TACoS, 승자 키워드·플레이스먼트 추출"},
+  {id:"a2", c:"ads",  due:"2026-10-28", t:"BFCM 광고 예산 플랜 수립", n:"Lead-in/BFCM/Lead-out 일별 증액 스케줄 + 목표 TACoS"},
+  {id:"a3", c:"ads",  due:"2026-11-04", t:"외부 트래픽 예산 협의", n:"구글 Ads, Levanta 등 — BFCM 단가 상승 반영"},
+  {id:"a4", c:"ads",  due:"2026-11-05", t:"Lead-in 승자 키워드 입찰 선점", n:"본행사 전 랭킹·세션 확보가 BFCM 전환율을 좌우"},
+  {id:"a5", c:"ads",  due:"2026-11-11", t:"BFCM 전용 캠페인·크리에이티브 세팅", n:"SB/SBV/SD, 딜 소구 카피, 예약 시작일 설정"},
+  {id:"a6", c:"ads",  due:"2026-11-18", t:"예산 소진·입찰 모니터링 룰 확정", n:"일 2회 체크, 조기 소진 시 증액 권한·한도 사전 합의"},
+  // 리스팅 · 경쟁사
+  {id:"l1", c:"list", due:"2026-10-21", t:"경쟁사 BFCM 가격·딜 조사", n:"주요 경쟁 ASIN 가격 추이·작년 할인율 트래킹"},
+  {id:"l2", c:"list", due:"2026-11-04", t:"리뷰·평점 관리", n:"Vine·신제품 리뷰 확보, 평점 4.0 미만 ASIN 선조치"},
+  {id:"l3", c:"list", due:"2026-11-11", t:"이미지·A+·동영상 BFCM 버전 준비", n:"이미지 내 가격·할인 문구 금지 규정 확인"},
+  {id:"l4", c:"list", due:"2026-11-14", t:"리스팅 오류 사전 점검", n:"Stranded·비활성·Buy Box 상실·배송 설정 확인"},
+  {id:"l5", c:"list", due:"2026-11-14", t:"BSR·랭킹 모니터링 준비", n:"행사 기간 일별 추적 시트/대시보드 세팅"},
+  {id:"l6", c:"list", due:"2026-11-18", t:"쿠폰·프로모션 배지 노출 점검", n:"PDP·검색결과에서 실제 노출되는지 국가별 확인"},
+];
+const bfLoad=()=>{try{return JSON.parse(localStorage.getItem(BF_KEY)||"{}")}catch(e){return {}}};
+const bfSave=s=>localStorage.setItem(BF_KEY,JSON.stringify(s));
+const todayKST=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul"}).format(new Date());
+const dayDiff=(a,b)=>Math.round((Date.parse(b+"T00:00:00Z")-Date.parse(a+"T00:00:00Z"))/864e5);
+const mdTxt=d=>(+d.slice(5,7))+"/"+(+d.slice(8,10));
+let BF_FILTER="all";
+function bfState(it,st){
+  const s=st[it.id]||{};
+  return {done:!!s.done, owner:s.owner||"", due:s.due||it.due};
+}
+function renderBfcm(){
+  const st=bfLoad(), today=todayKST();
+  const dd=dayDiff(today,BF_PHASES[2].s), ddEnd=dayDiff(today,BF_PHASES[2].e);
+  document.getElementById("bf-dday").textContent = dd>0?"D-"+dd : ddEnd>=0?"진행 중" : "종료";
+  document.getElementById("bf-win").innerHTML = "11/19 – 11/30 (12일) · 블랙프라이데이 11/27 · 사이버먼데이 11/30"+(dd>0?` · 본행사까지 <b>${dd}일</b>`:ddEnd>=0?` · 남은 <b>${ddEnd}일</b>`:"");
+  document.getElementById("bf-phases").innerHTML = BF_PHASES.map(p=>{
+    const cur = today>=p.s && today<=p.e, past = today>p.e;
+    const left = dayDiff(today,p.s);
+    return `<div class="ph ${cur?"now":past?"past":""}"><b>${p.n}</b><span>${mdTxt(p.s)} – ${mdTxt(p.e)}</span><span>${cur?"진행 중 · "+p.d:past?"종료":"D-"+left+" · "+p.d}</span></div>`;
+  }).join("");
+  const all=BF_ITEMS.map(it=>({it,s:bfState(it,st)}));
+  const doneN=all.filter(x=>x.s.done).length;
+  document.getElementById("bf-prog").textContent = doneN+" / "+all.length;
+  document.getElementById("bf-bar").style.width = pct(doneN,all.length)+"%";
+  const risky=x=>!x.s.done && dayDiff(today,x.s.due)<=7;
+  const keep=x=> BF_FILTER==="all" || (BF_FILTER==="open"?!x.s.done:risky(x));
+  document.getElementById("bf-list").innerHTML = BF_CATS.map(([c,label])=>{
+    const rows=all.filter(x=>x.it.c===c), shown=rows.filter(keep);
+    const dn=rows.filter(x=>x.s.done).length, p=pct(dn,rows.length);
+    const head=`<div class="catbar"><h3>${label}</h3><div class="bar thin"><i style="width:${p}%;background:${p>=100?'var(--green)':'var(--fill)'}"></i></div><span class="n">${dn}/${rows.length}</span></div>`;
+    if(!shown.length) return head+`<div class="muted" style="font-size:12.5px;padding:8px 0">해당 항목 없음</div>`;
+    return head+shown.map(({it,s})=>{
+      const left=dayDiff(today,s.due);
+      const stt = s.done?["fin","완료"] : left<0?["late","지연"] : left<=7?["soon","D-"+left] : ["","D-"+left];
+      return `<div class="ck ${s.done?"done":""}" data-id="${it.id}">
+        <input type="checkbox" class="bf-chk" ${s.done?"checked":""} aria-label="${it.t}">
+        <div class="t">${it.t}<small>${it.n}</small></div>
+        <input class="owner" list="bf-owners" placeholder="담당자" value="${s.owner.replace(/"/g,"&quot;")}">
+        <input class="due" type="date" value="${s.due}">
+        <span class="st ${stt[0]}">${stt[1]}</span></div>`;
+    }).join("");
+  }).join("")+`<datalist id="bf-owners"><option>온기철</option><option>김세빈</option><option>김선우</option><option>아말</option></datalist>`;
+}
+document.getElementById("bf-list").addEventListener("change",e=>{
+  const row=e.target.closest(".ck"); if(!row) return;
+  const st=bfLoad(), id=row.dataset.id, cur=st[id]||{};
+  if(e.target.classList.contains("bf-chk")) cur.done=e.target.checked;
+  else if(e.target.classList.contains("owner")) cur.owner=e.target.value.trim();
+  else if(e.target.classList.contains("due")) cur.due=e.target.value||BF_ITEMS.find(i=>i.id===id).due;
+  st[id]=cur; bfSave(st); renderBfcm();
+});
+document.getElementById("bf-filter").onclick=e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  BF_FILTER=b.dataset.f;
+  document.querySelectorAll("#bf-filter button").forEach(x=>x.classList.toggle("on",x===b));
+  renderBfcm();
+};
+function bfText(){
+  const st=bfLoad(), today=todayKST(), dd=dayDiff(today,BF_PHASES[2].s);
+  return ["[BFCM 2026 준비 체크리스트] "+(dd>0?"D-"+dd:dayDiff(today,BF_PHASES[2].e)>=0?"진행 중":"종료")+" · 11/19~11/30"]
+    .concat(BF_CATS.map(([c,label])=>{
+      const items=BF_ITEMS.filter(i=>i.c===c);
+      const rows=items.map(it=>{ const s=bfState(it,st);
+        return `  ${s.done?"[x]":"[ ]"} ${it.t} — ${mdTxt(s.due)}${s.owner?" / "+s.owner:""}${!s.done&&dayDiff(today,s.due)<0?" (지연)":""}`; });
+      return `\n■ ${label} (${items.filter(i=>bfState(i,st).done).length}/${items.length})\n`+rows.join("\n");
+    })).join("\n");
+}
+document.getElementById("bf-copy").onclick=async e=>{
+  const txt=bfText(); let ok=false;
+  try{ await navigator.clipboard.writeText(txt); ok=true; }catch(err){
+    const ta=document.createElement("textarea"); ta.value=txt; ta.style.cssText="position:fixed;top:-9999px";
+    document.body.appendChild(ta); ta.select();
+    try{ ok=document.execCommand("copy"); }catch(e2){}
+    ta.remove();
+  }
+  e.target.textContent = ok?"복사됨":"복사 실패";
+  setTimeout(()=>{e.target.textContent="텍스트 복사";},1500);
+};
+document.getElementById("bf-reset").onclick=()=>{ if(confirm("체크 상태·담당자·마감일을 모두 기본값으로 되돌립니다.")){ localStorage.removeItem(BF_KEY); renderBfcm(); } };
+renderBfcm();
+
 async function load(force){
   try{ const r=await fetch("/api/data"+(force?"?t="+Date.now():""),{cache:force?"no-store":"default"}); const d=await r.json();
     if(d.error) throw new Error(d.error); LAST=JSON.parse(JSON.stringify(d)); render(d);
